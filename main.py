@@ -18,7 +18,7 @@ def get_dataset(hparams, train=False):
     example = tf.io.parse_single_example(example_proto, feature_description)
     return preprocess_image(example['image']), example['label']
 
-  ds = ds.map(parse_example())
+  ds = ds.map(parse_example)
   ds = ds.shuffle(buffer_size=1280)
   ds = ds.batch(hparams.batch_size)
   ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
