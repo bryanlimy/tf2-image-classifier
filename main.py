@@ -2,7 +2,7 @@ import time
 import tensorflow as tf
 import tensorflow.keras as keras
 
-from utils import Logger, get_hparams, preprocess_image
+from utils import Logger, Checkpoint, get_hparams, preprocess_image
 
 
 def get_dataset(hparams, train=False):
@@ -67,6 +67,10 @@ def train_and_test(hparams):
   train_dataset = get_dataset(hparams, train=True)
   test_dataset = get_dataset(hparams, train=False)
 
+  checkpoint = Checkpoint(hparams, optimizer, model)
+
+  checkpoint.restore()
+
   for epoch in range(hparams.epochs):
 
     start = time.time()
@@ -88,9 +92,7 @@ def train_and_test(hparams):
     logger.print_progress(epoch, elapse)
 
     if epoch % 5 == 0:
-      tf.keras.models.save_model(model, filepath=hparams.save_model)
-
-  model.summary()
+      checkpoint.save()
 
   tf.keras.models.save_model(model, filepath=hparams.save_model)
   print('model saved at %s' % hparams.save_model)

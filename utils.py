@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 
 
-def get_hparams(epochs=40,
+def get_hparams(epochs=20,
                 batch_size=64,
                 learning_rate=0.001,
                 num_units=128,
@@ -93,6 +93,24 @@ class Logger(object):
             self.test_accuracy.result() * 100,
             elapse,
         ))
+
+
+class Checkpoint(object):
+
+  def __init__(self, hparams, optimizer, model):
+    self.checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
+    self.output_dir = hparams.output_dir
+    self.file_prefix = os.path.join(self.output_dir, 'ckpt')
+
+  def save(self):
+    path = self.checkpoint.save(file_prefix=self.file_prefix)
+    print('saved checkpoint %s' % path)
+
+  def restore(self):
+    latest_checkpoint = tf.train.latest_checkpoint(self.output_dir)
+    if latest_checkpoint is not None:
+      self.checkpoint.restore(latest_checkpoint)
+      print('restore checkpoint %s' % latest_checkpoint)
 
 
 def preprocess_image(content):
