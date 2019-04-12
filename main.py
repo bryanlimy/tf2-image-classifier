@@ -44,7 +44,7 @@ def get_model(hparams):
   return model
 
 
-#@tf.function
+@tf.function
 def train_step(features, labels, model, optimizer, loss_fn):
   with tf.GradientTape() as tape:
     predictions = model(features, training=True)
@@ -54,7 +54,7 @@ def train_step(features, labels, model, optimizer, loss_fn):
   return loss, predictions
 
 
-#@tf.function
+@tf.function
 def test_step(features, labels, model, loss_fn):
   predictions = model(features, training=False)
   loss = loss_fn(labels, predictions)
@@ -67,13 +67,14 @@ def train_and_test(hparams):
   loss_fn = keras.losses.SparseCategoricalCrossentropy()
   logger = Logger(hparams, optimizer)
 
-  dataset = get_dataset(hparams, train=True)
+  train_dataset = get_dataset(hparams, train=True)
+  test_dataset = get_dataset(hparams, train=False)
 
   for epoch in range(hparams.epochs):
 
     start = time.time()
 
-    for images, labels in dataset:
+    for images, labels in train_dataset:
       loss, predictions = train_step(images, labels, model, optimizer, loss_fn)
       logger.log_progress(loss, labels, predictions, mode='train')
 
@@ -81,11 +82,12 @@ def train_and_test(hparams):
 
     logger.write_scalars(mode='train')
 
-    # for images, labels in datasets['test']:
-    #   loss, predictions = test_step(images, labels, model, loss_fn)
-    #   logger.log_progress(loss, labels, predictions, mode='test')
+    for images, labels in test_dataset:
+      loss, predictions = test_step(images, labels, model, loss_fn)
+      logger.log_progress(loss, labels, predictions, mode='test')
 
-    # logger.write_scalars(mode='test', elapse=elapse)
+    logger.write_scalars(mode='test', elapse=elapse)
+
     logger.print_progress(epoch, elapse)
 
   tf.keras.models.save_model(model, filepath=hparams.output_dir)
@@ -93,8 +95,6 @@ def train_and_test(hparams):
 
 def main():
   hparams = get_hparams()
-  hparams.num_classes = 5
-
   train_and_test(hparams)
 
 

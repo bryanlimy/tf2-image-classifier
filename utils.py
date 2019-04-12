@@ -1,5 +1,4 @@
 import os
-import pathlib
 import tensorflow as tf
 import tensorflow.keras as keras
 
@@ -18,6 +17,7 @@ def get_hparams(num_units=128,
   hparams.data_dir = 'data'
   hparams.train_record = 'train.tfrecord'
   hparams.test_record = 'test.tfrecord'
+  hparams.num_classes = 5
   return hparams
 
 
@@ -58,7 +58,6 @@ class Logger(object):
 
   def write_images(self, images, mode):
     summary = self.train_summary if mode == 'train' else self.test_summary
-    # log 3 images
     with summary.as_default():
       tf.summary.image('features', images, step=self._step(), max_outputs=3)
 
@@ -80,7 +79,10 @@ class Logger(object):
             'elapse', elapse, step=self._step(), description='sec per epoch')
 
   def print_progress(self, epoch, elapse):
-    template = 'Epoch {}, Loss {:.4f}, Accuracy: {:.2f}, Time: {:.2f}s'
+    template = 'Epoch {}, Loss {:.4f}, Accuracy: {:.2f}, Test Loss {:.4f}, ' \
+               'Test Accuracy {:.2f}, Time: {:.2f}s'
     print(
         template.format(epoch, self.train_loss.result(),
-                        self.train_accuracy.result() * 100, elapse))
+                        self.train_accuracy.result() * 100,
+                        self.test_loss.result(), self.test_accuracy.result(),
+                        elapse))
