@@ -23,7 +23,7 @@ def get_dataset(hparams, train=False):
     return image, example['label']
 
   ds = ds.map(preprocess_image)
-  ds = ds.shuffle(buffer_size=2000)
+  ds = ds.shuffle(buffer_size=1280)
   ds = ds.batch(hparams.batch_size)
   ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   return ds
@@ -35,10 +35,11 @@ def get_model(hparams):
 
   mobile_net.trainable = False
 
-  model = tf.keras.Sequential([
+  model = keras.Sequential([
       mobile_net,
-      tf.keras.layers.GlobalAveragePooling2D(),
-      tf.keras.layers.Dense(hparams.num_classes, activation='softmax')
+      keras.layers.GlobalAveragePooling2D(),
+      keras.layers.Dropout(rate=hparams.dropout),
+      keras.layers.Dense(hparams.num_classes, activation='softmax')
   ])
 
   return model
@@ -90,11 +91,15 @@ def train_and_test(hparams):
 
     logger.print_progress(epoch, elapse)
 
-  tf.keras.models.save_model(model, filepath=hparams.output_dir)
+  model.summary()
+
+  tf.keras.models.save_model(model, filepath=hparams.save_model)
+
+  print('model saved at %s' % hparams.save_model)
 
 
 def main():
-  hparams = get_hparams()
+  hparams = get_hparams(epochs=1)
   train_and_test(hparams)
 
 

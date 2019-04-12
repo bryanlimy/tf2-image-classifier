@@ -3,17 +3,20 @@ import tensorflow as tf
 import tensorflow.keras as keras
 
 
-def get_hparams(num_units=128,
+def get_hparams(epochs=40,
+                batch_size=64,
                 learning_rate=0.001,
+                num_units=128,
                 dropout=0.4,
                 output_dir='runs/'):
   hparams = HParams()
-  hparams.epochs = 40
-  hparams.batch_size = 64
+  hparams.epochs = epochs
+  hparams.batch_size = batch_size
   hparams.learning_rate = learning_rate
   hparams.num_units = num_units
   hparams.dropout = dropout
   hparams.output_dir = output_dir
+  hparams.save_model = os.path.join(output_dir, 'model.h5')
   hparams.data_dir = 'data'
   hparams.train_record = 'train.tfrecord'
   hparams.test_record = 'test.tfrecord'
@@ -82,7 +85,11 @@ class Logger(object):
     template = 'Epoch {}, Loss {:.4f}, Accuracy: {:.2f}, Test Loss {:.4f}, ' \
                'Test Accuracy {:.2f}, Time: {:.2f}s'
     print(
-        template.format(epoch, self.train_loss.result(),
-                        self.train_accuracy.result() * 100,
-                        self.test_loss.result(), self.test_accuracy.result(),
-                        elapse))
+        template.format(
+            epoch,
+            self.train_loss.result(),
+            self.train_accuracy.result() * 100,
+            self.test_loss.result(),
+            self.test_accuracy.result() * 100,
+            elapse,
+        ))
