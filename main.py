@@ -87,10 +87,12 @@ def train_and_test(hparams):
 
     logger.print_progress(epoch, elapse)
 
+    if epoch % 5 == 0:
+      tf.keras.models.save_model(model, filepath=hparams.save_model)
+
   model.summary()
 
   tf.keras.models.save_model(model, filepath=hparams.save_model)
-
   print('model saved at %s' % hparams.save_model)
 
 
