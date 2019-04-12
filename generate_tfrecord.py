@@ -1,61 +1,73 @@
 import tensorflow as tf
 import pathlib
 
-from utils import get_image_paths, get_hparams
+from utils import get_hparams
 
 
-def preprocess_image(image):
-  image = tf.image.decode_jpeg(image, channels=3)
-  image = tf.image.resize(image, [192, 192])
-  # normalize image to [-1, -1]
-  image = (image / 127.5) - 1
-  return image
+def _bytes_feature(value):
+  """Returns a bytes_list from a string / byte."""
+  if isinstance(value, type(tf.constant(0))):
+    value = value.numpy(
+    )  # BytesList won't unpack a string from an EagerTensor.
+  return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
-def load_and_preprocess_image(path):
-  image = tf.io.read_file(path)
-  return preprocess_image(image)
+def _float_feature(value):
+  """Returns a float_list from a float / double."""
+  return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
 
 
-def get_labels_ds(hparams):
-  label_names = sorted(
-      item.name
-      for item in pathlib.Path(hparams.data_dir).glob('*/')
-      if item.is_dir())
+def _int64_feature(value):
+  """Returns an int64_list from a bool / enum / int / uint."""
+  return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+
+def get_paths(data_dir):
+  return pathlib.Path(data_dir)
+
+
+def get_images(paths):
+  return [str(path) for path in list(paths.glob('*/*'))]
+
+
+def get_labels(paths, images_path):
+  label_names = sorted(item.name for item in paths.glob('*/') if item.is_dir())
 
   label_to_index = dict((name, index) for index, name in enumerate(label_names))
 
-  all_image_labels = [
-      label_to_index[pathlib.Path(path).parent.name]
-      for path in get_image_paths(hparams)
+  return [
+      label_to_index[pathlib.Path(path).parent.name] for path in images_path
   ]
 
-  return tf.data.Dataset.from_tensor_slices(tf.cast(all_image_labels, tf.int64))
 
-
-def main():
+def main(train=True):
   hparams = get_hparams()
 
-  if tf.io.gfile.exists(hparams.train_record):
-    tf.io.gfile.remove(hparams.train_record)
+  record_path = hparams.train_record if train else hparams.test_record
 
-  all_image_paths = get_image_paths(hparams)
-  paths_ds = tf.data.Dataset.from_tensor_slices(all_image_paths)
-  images_ds = paths_ds.map(load_and_preprocess_image)
-  images_ds = images_ds.map(tf.io.serialize_tensor)
+  if tf.io.gfile.exists(record_path):
+    tf.io.gfile.remove(record_path)
 
-  labels_ds = get_labels_ds(hparams)
-  labels_ds = labels_ds.map(tf.io.serialize_tensor)
+  paths = get_paths(hparams.data_dir)
 
-  ds = tf.data.Dataset.zip((images_ds, labels_ds))
+  images_path = get_images(paths)
+  labels = get_labels(paths, images_path)
 
-  #ds = ds.map(tf.io.serialize_tensor)
+  def create_tf_example(filename, label):
+    feature = {
+        'image': _bytes_feature(tf.io.read_file(filename)),
+        'label': _int64_feature(label)
+    }
+    return tf.train.Example(features=tf.train.Features(feature=feature))
 
-  tfrecord = tf.data.experimental.TFRecordWriter(hparams.train_record)
-  tfrecord.write(ds)
+  count = 0
+  with tf.io.TFRecordWriter(record_path) as writer:
+    for filename, label in zip(images_path, labels):
+      tf_example = create_tf_example(filename, label)
+      writer.write(tf_example.SerializeToString())
+      count += 1
 
-  print(
-      'written %d images to %s' % (len(all_image_paths), hparams.train_record))
+  print('%d data points stored to %s' % (count, record_path))
 
 
 if __name__ == "__main__":

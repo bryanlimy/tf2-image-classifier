@@ -107,3 +107,4 @@ venv.bak/
 *.tfrecord
 *.zip
 data/
+runs/

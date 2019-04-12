@@ -84,9 +84,3 @@ class Logger(object):
     print(
         template.format(epoch, self.train_loss.result(),
                         self.train_accuracy.result() * 100, elapse))
-
-
-def get_image_paths(hparams):
-  return [
-      str(path) for path in list(pathlib.Path(hparams.data_dir).glob('*/*'))
-  ]

@@ -1,42 +1,29 @@
 import time
-import pathlib
 import tensorflow as tf
 import tensorflow.keras as keras
 
-from utils import Logger, get_hparams, get_image_paths
+from utils import Logger, get_hparams
 
 
-def get_labels_ds(hparams):
-  label_names = sorted(
-      item.name
-      for item in pathlib.Path(hparams.data_dir).glob('*/')
-      if item.is_dir())
+def get_dataset(hparams, train=False):
+  record_file = hparams.train_record if train else hparams.test_record
+  ds = tf.data.TFRecordDataset(record_file)
 
-  label_to_index = dict((name, index) for index, name in enumerate(label_names))
+  feature_description = {
+      'image': tf.io.FixedLenFeature([], tf.string),
+      'label': tf.io.FixedLenFeature([], tf.int64)
+  }
 
-  all_image_labels = [
-      label_to_index[pathlib.Path(path).parent.name]
-      for path in get_image_paths(hparams)
-  ]
+  def preprocess_image(example_proto):
+    example = tf.io.parse_single_example(example_proto, feature_description)
+    image = tf.image.decode_jpeg(example['image'], channels=3)
+    image = tf.image.resize(image, [192, 192])
+    # normalize image to [-1, -1]
+    image = (image / 127.5) - 1
+    return image, example['label']
 
-  return tf.data.Dataset.from_tensor_slices(tf.cast(all_image_labels, tf.int64))
-
-
-def get_images_ds(hparams):
-
-  def parse(x):
-    result = tf.io.parse_tensor(x, out_type=tf.float32)
-    result = tf.reshape(result, [192, 192, 3])
-    return result
-
-  images_ds = tf.data.TFRecordDataset(hparams.train_record)
-  return images_ds.map(parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-
-
-def get_ds(hparams):
-  images_ds, labels_ds = get_images_ds(hparams), get_labels_ds(hparams)
-  ds = tf.data.Dataset.zip((images_ds, labels_ds))
-  ds = ds.shuffle(buffer_size=hparams.num_images)
+  ds = ds.map(preprocess_image)
+  ds = ds.shuffle(buffer_size=2000)
   ds = ds.batch(hparams.batch_size)
   ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
   return ds
@@ -80,7 +67,7 @@ def train_and_test(hparams):
   loss_fn = keras.losses.SparseCategoricalCrossentropy()
   logger = Logger(hparams, optimizer)
 
-  dataset = get_ds(hparams)
+  dataset = get_dataset(hparams, train=True)
 
   for epoch in range(hparams.epochs):
 
@@ -106,7 +93,6 @@ def train_and_test(hparams):
 
 def main():
   hparams = get_hparams()
-  hparams.num_images = len(get_image_paths(hparams))
   hparams.num_classes = 5
 
   train_and_test(hparams)
