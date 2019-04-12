@@ -2,7 +2,7 @@ import time
 import tensorflow as tf
 import tensorflow.keras as keras
 
-from utils import Logger, get_hparams
+from utils import Logger, get_hparams, preprocess_image
 
 
 def get_dataset(hparams, train=False):
@@ -14,15 +14,11 @@ def get_dataset(hparams, train=False):
       'label': tf.io.FixedLenFeature([], tf.int64)
   }
 
-  def preprocess_image(example_proto):
+  def parse_example(example_proto):
     example = tf.io.parse_single_example(example_proto, feature_description)
-    image = tf.image.decode_jpeg(example['image'], channels=3)
-    image = tf.image.resize(image, [192, 192])
-    # normalize image to [-1, -1]
-    image = (image / 127.5) - 1
-    return image, example['label']
+    return preprocess_image(example['image']), example['label']
 
-  ds = ds.map(preprocess_image)
+  ds = ds.map(parse_example())
   ds = ds.shuffle(buffer_size=1280)
   ds = ds.batch(hparams.batch_size)
   ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
