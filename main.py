@@ -91,7 +91,7 @@ def train_and_test(hparams):
 
     logger.print_progress(epoch, elapse)
 
-    if epoch % 5 == 0:
+    if epoch % 5 == 0 or epoch == hparams.epochs - 1:
       checkpoint.save()
 
   tf.keras.models.save_model(model, filepath=hparams.save_model)
