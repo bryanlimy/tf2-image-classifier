@@ -95,8 +95,8 @@ class Logger(object):
         ))
 
 
-def preprocess_image(image_path):
-  image = tf.image.decode_jpeg(image_path, channels=3)
+def preprocess_image(content):
+  image = tf.image.decode_jpeg(content, channels=3)
   image = tf.image.resize(image, [192, 192])
   # normalize image to [-1, -1]
   return (image / 127.5) - 1
