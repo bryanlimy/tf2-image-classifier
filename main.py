@@ -99,7 +99,7 @@ def train_and_test(hparams):
 
 
 def main():
-  hparams = get_hparams(epochs=1)
+  hparams = get_hparams()
   train_and_test(hparams)
 
 
