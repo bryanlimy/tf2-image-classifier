@@ -53,17 +53,9 @@ def create_tfrecord(images, labels, hparams, train=True):
   if tf.io.gfile.exists(record_path):
     tf.io.gfile.remove(record_path)
 
-  def preprocess_image(filename):
-    image = tf.io.read_file(filename)
-    image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.resize(image, [192, 192])
-    image = image / 255.0
-    image = tf.io.serialize_tensor(image)
-    return image
-
   def create_tf_example(filename, label):
     feature = {
-        'image': _bytes_feature(preprocess_image(filename)),
+        'image': _bytes_feature(tf.io.read_file(filename)),
         'label': _int64_feature(label)
     }
     return tf.train.Example(features=tf.train.Features(feature=feature))

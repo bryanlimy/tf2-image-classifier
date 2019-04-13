@@ -4,6 +4,8 @@ import tensorflow.keras as keras
 
 from utils import Logger, Checkpoint, get_hparams
 
+AUTOTUNE = tf.data.experimental.AUTOTUNE
+
 
 def get_dataset(hparams, train=False):
   record_file = hparams.train_record if train else hparams.eval_record
@@ -16,12 +18,16 @@ def get_dataset(hparams, train=False):
 
   def parse_example(example_proto):
     example = tf.io.parse_single_example(example_proto, feature_description)
-    return tf.io.parse_tensor(example['image'], tf.float32), example['label']
+    image = tf.image.decode_jpeg(example['image'], channels=3)
+    image = tf.image.resize(image, [192, 192])
+    # scale image to [-1, 1]
+    image = (image / 127.5) - 1
+    return image, example['label']
 
-  ds = ds.map(parse_example)
-  ds = ds.shuffle(buffer_size=1280)
+  ds = ds.map(parse_example, num_parallel_calls=AUTOTUNE)
+  ds = ds.shuffle(buffer_size=1024)
   ds = ds.batch(hparams.batch_size)
-  ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+  ds = ds.prefetch(AUTOTUNE)
   return ds
 
 
@@ -44,7 +50,6 @@ def get_model(hparams):
 @tf.function
 def train_step(features, labels, model, optimizer, loss_fn):
   with tf.GradientTape() as tape:
-    features = 2 * features - 1
     predictions = model(features, training=True)
     loss = loss_fn(labels, predictions)
   gradients = tape.gradient(loss, model.trainable_variables)
@@ -85,7 +90,7 @@ def train_and_eval(hparams):
     logger.write_scalars(mode='train')
 
     for images, labels in eval_dataset:
-      logger.write_images(images, mode='train')
+      logger.write_images(images, mode='eval')
       loss, predictions = eval_step(images, labels, model, loss_fn)
       logger.log_progress(loss, labels, predictions, mode='eval')
 

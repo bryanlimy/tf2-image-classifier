@@ -65,6 +65,8 @@ class Logger(object):
   def write_images(self, images, mode):
     summary = self.train_summary if mode == 'train' else self.eval_summary
 
+    # scale image to [0, 1]
+    images = (images + 1) / 2
     with summary.as_default():
       tf.summary.image('features', images, step=self._step(), max_outputs=3)
 
