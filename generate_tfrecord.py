@@ -1,5 +1,6 @@
 import os
 import pathlib
+from tqdm import tqdm
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
@@ -47,21 +48,29 @@ def get_labels(paths, images_path):
 
 
 def create_tfrecord(images, labels, hparams, train=True):
-  record_path = hparams.train_record if train else hparams.test_record
+  record_path = hparams.train_record if train else hparams.eval_record
 
   if tf.io.gfile.exists(record_path):
     tf.io.gfile.remove(record_path)
 
+  def preprocess_image(filename):
+    image = tf.io.read_file(filename)
+    image = tf.image.decode_jpeg(image, channels=3)
+    image = tf.image.resize(image, [192, 192])
+    image = image / 255.0
+    image = tf.io.serialize_tensor(image)
+    return image
+
   def create_tf_example(filename, label):
     feature = {
-        'image': _bytes_feature(tf.io.read_file(filename)),
+        'image': _bytes_feature(preprocess_image(filename)),
         'label': _int64_feature(label)
     }
     return tf.train.Example(features=tf.train.Features(feature=feature))
 
   count = 0
   with tf.io.TFRecordWriter(record_path) as writer:
-    for filename, label in zip(images, labels):
+    for filename, label in tqdm(zip(images, labels), total=len(labels)):
       tf_example = create_tf_example(filename, label)
       writer.write(tf_example.SerializeToString())
       count += 1
@@ -80,7 +89,9 @@ def main():
   X_train, X_test, y_train, y_test = train_test_split(
       images_path, labels, test_size=0.3, shuffle=True)
 
+  print('generating tfrecord for training set')
   create_tfrecord(X_train, y_train, hparams, train=True)
+  print('generating tfrecord for evaluation set')
   create_tfrecord(X_test, y_test, hparams, train=False)
 
 

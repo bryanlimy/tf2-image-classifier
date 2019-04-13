@@ -2,11 +2,11 @@ import time
 import tensorflow as tf
 import tensorflow.keras as keras
 
-from utils import Logger, Checkpoint, get_hparams, preprocess_image
+from utils import Logger, Checkpoint, get_hparams
 
 
 def get_dataset(hparams, train=False):
-  record_file = hparams.train_record if train else hparams.test_record
+  record_file = hparams.train_record if train else hparams.eval_record
   ds = tf.data.TFRecordDataset(record_file)
 
   feature_description = {
@@ -16,7 +16,7 @@ def get_dataset(hparams, train=False):
 
   def parse_example(example_proto):
     example = tf.io.parse_single_example(example_proto, feature_description)
-    return preprocess_image(example['image']), example['label']
+    return tf.io.parse_tensor(example['image'], tf.float32), example['label']
 
   ds = ds.map(parse_example)
   ds = ds.shuffle(buffer_size=1280)
@@ -44,6 +44,7 @@ def get_model(hparams):
 @tf.function
 def train_step(features, labels, model, optimizer, loss_fn):
   with tf.GradientTape() as tape:
+    features = 2 * features - 1
     predictions = model(features, training=True)
     loss = loss_fn(labels, predictions)
   gradients = tape.gradient(loss, model.trainable_variables)
@@ -52,20 +53,20 @@ def train_step(features, labels, model, optimizer, loss_fn):
 
 
 @tf.function
-def test_step(features, labels, model, loss_fn):
+def eval_step(features, labels, model, loss_fn):
   predictions = model(features, training=False)
   loss = loss_fn(labels, predictions)
   return loss, predictions
 
 
-def train_and_test(hparams):
+def train_and_eval(hparams):
   model = get_model(hparams)
   optimizer = keras.optimizers.Adam(lr=hparams.learning_rate)
   loss_fn = keras.losses.SparseCategoricalCrossentropy()
   logger = Logger(hparams, optimizer)
 
   train_dataset = get_dataset(hparams, train=True)
-  test_dataset = get_dataset(hparams, train=False)
+  eval_dataset = get_dataset(hparams, train=False)
 
   checkpoint = Checkpoint(hparams, optimizer, model)
 
@@ -83,11 +84,12 @@ def train_and_test(hparams):
 
     logger.write_scalars(mode='train')
 
-    for images, labels in test_dataset:
-      loss, predictions = test_step(images, labels, model, loss_fn)
-      logger.log_progress(loss, labels, predictions, mode='test')
+    for images, labels in eval_dataset:
+      logger.write_images(images, mode='train')
+      loss, predictions = eval_step(images, labels, model, loss_fn)
+      logger.log_progress(loss, labels, predictions, mode='eval')
 
-    logger.write_scalars(mode='test', elapse=elapse)
+    logger.write_scalars(mode='eval', elapse=elapse)
 
     logger.print_progress(epoch, elapse)
 
@@ -100,7 +102,7 @@ def train_and_test(hparams):
 
 def main():
   hparams = get_hparams()
-  train_and_test(hparams)
+  train_and_eval(hparams)
 
 
 if __name__ == "__main__":

@@ -2,13 +2,16 @@ import os
 import tensorflow as tf
 import tensorflow.keras as keras
 
+import numpy as np
+
 
 def get_hparams(epochs=20,
                 batch_size=64,
                 learning_rate=0.001,
                 num_units=128,
                 dropout=0.4,
-                output_dir='runs/'):
+                output_dir='runs/',
+                data_dir='data'):
   hparams = HParams()
   hparams.epochs = epochs
   hparams.batch_size = batch_size
@@ -17,9 +20,9 @@ def get_hparams(epochs=20,
   hparams.dropout = dropout
   hparams.output_dir = output_dir
   hparams.save_model = os.path.join(output_dir, 'model.h5')
-  hparams.data_dir = 'data'
+  hparams.data_dir = data_dir
   hparams.train_record = 'train.tfrecord'
-  hparams.test_record = 'test.tfrecord'
+  hparams.eval_record = 'eval.tfrecord'
   hparams.num_classes = 5
   return hparams
 
@@ -38,12 +41,12 @@ class Logger(object):
     self.train_accuracy = keras.metrics.SparseCategoricalAccuracy(
         name="train_accuracy")
 
-    self.test_loss = keras.metrics.Mean(name="test_loss")
-    self.test_accuracy = keras.metrics.SparseCategoricalAccuracy(
-        name="test_accuracy")
+    self.eval_loss = keras.metrics.Mean(name="eval_loss")
+    self.eval_accuracy = keras.metrics.SparseCategoricalAccuracy(
+        name="eval_accuracy")
 
     self.train_summary = tf.summary.create_file_writer(hparams.output_dir)
-    self.test_summary = tf.summary.create_file_writer(
+    self.eval_summary = tf.summary.create_file_writer(
         os.path.join(hparams.output_dir, 'eval'))
 
     self.optimizer = optimizer
@@ -56,11 +59,12 @@ class Logger(object):
       self.train_loss(loss)
       self.train_accuracy(labels, predictions)
     else:
-      self.test_loss(loss)
-      self.test_accuracy(labels, predictions)
+      self.eval_loss(loss)
+      self.eval_accuracy(labels, predictions)
 
   def write_images(self, images, mode):
-    summary = self.train_summary if mode == 'train' else self.test_summary
+    summary = self.train_summary if mode == 'train' else self.eval_summary
+
     with summary.as_default():
       tf.summary.image('features', images, step=self._step(), max_outputs=3)
 
@@ -70,9 +74,9 @@ class Logger(object):
       accuracy_metric = self.train_accuracy
       summary = self.train_summary
     else:
-      loss_metric = self.test_loss
-      accuracy_metric = self.test_accuracy
-      summary = self.test_summary
+      loss_metric = self.eval_loss
+      accuracy_metric = self.eval_accuracy
+      summary = self.eval_summary
 
     with summary.as_default():
       tf.summary.scalar('loss', loss_metric.result(), step=self._step())
@@ -82,15 +86,15 @@ class Logger(object):
             'elapse', elapse, step=self._step(), description='sec per epoch')
 
   def print_progress(self, epoch, elapse):
-    template = 'Epoch {}, Loss {:.4f}, Accuracy: {:.2f}, Test Loss {:.4f}, ' \
-               'Test Accuracy {:.2f}, Time: {:.2f}s'
+    template = 'Epoch {}, Loss {:.4f}, Accuracy: {:.2f}, Eval Loss {:.4f}, ' \
+               'Eval Accuracy {:.2f}, Time: {:.2f}s'
     print(
         template.format(
             epoch,
             self.train_loss.result(),
             self.train_accuracy.result() * 100,
-            self.test_loss.result(),
-            self.test_accuracy.result() * 100,
+            self.eval_loss.result(),
+            self.eval_accuracy.result() * 100,
             elapse,
         ))
 
@@ -111,10 +115,3 @@ class Checkpoint(object):
     if latest_checkpoint is not None:
       self.checkpoint.restore(latest_checkpoint)
       print('restore checkpoint %s' % latest_checkpoint)
-
-
-def preprocess_image(content):
-  image = tf.image.decode_jpeg(content, channels=3)
-  image = tf.image.resize(image, [192, 192])
-  # normalize image to [-1, -1]
-  return (image / 127.5) - 1
